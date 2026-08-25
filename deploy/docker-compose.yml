@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    ports:
+      - "8000:8080"
+    environment:
+      - PORT=8080
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/research_kg
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - GCP_PROJECT_ID=${GCP_PROJECT_ID:-university-research-ai}
+      - USE_IN_MEMORY_STORE=false
+    depends_on:
+      - db
+
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=research_kg
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./init_db.sql:/docker-entrypoint-initdb.d/init.sql
+
+volumes:
+  pgdata:
