@@ -62,11 +62,34 @@ async def health_check():
         "storage": "GCS / Local Secure Vault"
     }
 
-# Mount Frontend static files
-frontend_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "frontend")
-if os.path.exists(frontend_dir):
+# Robust frontend directory resolution
+base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+candidates = [
+    os.path.join(base_dir, "frontend"),
+    os.path.abspath("frontend"),
+    os.path.join(os.getcwd(), "frontend"),
+    "/var/task/frontend"
+]
+frontend_dir = next((p for p in candidates if os.path.exists(p)), None)
+
+if frontend_dir and os.path.exists(frontend_dir):
     app.mount("/static", StaticFiles(directory=frontend_dir), name="static")
 
     @app.get("/")
     async def serve_index():
+        # Ensure database is seeded on cold start
+        from .models.database import db
+        if len(db.nodes) == 0:
+            await seed_initial_knowledge_graph()
         return FileResponse(os.path.join(frontend_dir, "index.html"))
+else:
+    @app.get("/")
+    async def root_fallback():
+        from .models.database import db
+        if len(db.nodes) == 0:
+            await seed_initial_knowledge_graph()
+        return {
+            "message": "University Research Knowledge Graph API",
+            "docs": "/docs",
+            "health": "/api/health"
+        }
